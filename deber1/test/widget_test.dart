@@ -1,30 +1,89 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:deber1/domain/repositories/contador_repository.dart';
+import 'package:deber1/domain/usecases/decrementar.dart';
+import 'package:deber1/domain/usecases/incrementar.dart';
+import 'package:deber1/domain/usecases/obtener_contador.dart';
 import 'package:deber1/main.dart';
 
+class _RepositorioEnMemoria implements ContadorRepository {
+  _RepositorioEnMemoria(this.valor);
+
+  int valor;
+
+  @override
+  Future<int> leer() async => valor;
+
+  @override
+  Future<void> guardar(int nuevoValor) async {
+    valor = nuevoValor;
+  }
+}
+
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  Future<void> abrirApp(
+    WidgetTester tester,
+    ContadorRepository repository,
+  ) async {
+    await tester.pumpWidget(
+      MyApp(
+        obtenerContador: ObtenerContador(repository),
+        incrementar: Incrementar(repository),
+        decrementar: Decrementar(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('Carga, modifica y devuelve el contador al visor', (
+    tester,
+  ) async {
+    final repository = _RepositorioEnMemoria(7);
+    await abrirApp(tester, repository);
+    expect(find.text('Contador: 7'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.tap(find.text('Ir a Control'));
+    await tester.pumpAndSettle();
+    expect(find.text('Contador: 7'), findsOneWidget);
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.tap(find.text('+1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Contador: 8'), findsOneWidget);
+    expect(repository.valor, 8);
+
+    await tester.tap(find.text('-1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('-1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Contador: 6'), findsOneWidget);
+    expect(repository.valor, 6);
+
+    await tester.tap(find.text('Volver'));
+    await tester.pumpAndSettle();
+    expect(find.text('Visor'), findsOneWidget);
+    expect(find.text('Contador: 6'), findsOneWidget);
+
+    await tester.tap(find.text('Ir a Control'));
+    await tester.pumpAndSettle();
+    expect(find.text('Contador: 6'), findsOneWidget);
+  });
+
+  testWidgets('Actualiza el visor al regresar con el botón del sistema', (
+    tester,
+  ) async {
+    final repository = _RepositorioEnMemoria(0);
+    await abrirApp(tester, repository);
+    await tester.tap(find.text('Ir a Control'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('-1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Contador: -1'), findsOneWidget);
+
+    final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+    await navigator.maybePop();
+    await tester.pumpAndSettle();
+    expect(find.text('Visor'), findsOneWidget);
+    expect(find.text('Contador: -1'), findsOneWidget);
   });
 }
